@@ -97,14 +97,16 @@ public class LocationService extends Service implements GoogleApiClient.Connecti
      */
     protected void startLocationUpdates() {
         Log.e(TAG,"starting loc updates");
-        try {
+        if(mGoogleApiClient.isConnected()) {
+            try {
 
-            LocationServices.FusedLocationApi.requestLocationUpdates(
-                    mGoogleApiClient, mLocationRequest, this);
+                LocationServices.FusedLocationApi.requestLocationUpdates(
+                        mGoogleApiClient, mLocationRequest, this);
 
-        } catch (SecurityException ex) {
-            ex.printStackTrace();
+            } catch (SecurityException ex) {
+                ex.printStackTrace();
 
+            }
         }
     }
 
