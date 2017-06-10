@@ -17,9 +17,13 @@ import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
+import android.widget.ListAdapter;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
@@ -35,17 +39,21 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import io.realm.Realm;
 import io.realm.RealmChangeListener;
+import io.realm.RealmList;
 import io.realm.RealmResults;
 import io.realm.Sort;
 
 public class MainActivity extends FragmentActivity implements OnMapReadyCallback {
 
     @BindView(R.id.listView)
-    ListView listView;
+    RecyclerView listView;
     LocationListAdapter listAdapter;
     Realm myRealm;
     GoogleMap mMap;
@@ -55,6 +63,8 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
     LocationManager locationManager;
     boolean isPerGranted = false;
     boolean isLocOn = false;
+    RealmResults<LocationObject> list;
+    ArrayList<LocationObject> arrayList;
 
 
     @Override
@@ -62,11 +72,12 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
+        listView.setLayoutManager(new LinearLayoutManager(MainActivity.this));
+
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         Realm.init(this);
         myRealm = Realm.getDefaultInstance();
         deleteAll();
-
 
         myRealm.addChangeListener(new RealmChangeListener<Realm>() {
 
@@ -85,11 +96,17 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
             permissionGranted();
         }
 
+    }
+    void populateList(Realm realm){
 
-
-
-
-
+        RealmResults realmResults = realm.where(LocationObject.class).findAll();
+        if (realmResults.size()>100) {
+            Log.e("MAIN","sixe grate than 100");
+            List<LocationObject> subList = realmResults.subList((realmResults.size()-100), realmResults.size());
+            arrayList = new ArrayList<>(subList);
+        } else arrayList = new ArrayList<>(realmResults);
+        listAdapter = new LocationListAdapter(MainActivity.this,arrayList);
+        listView.setAdapter(listAdapter);
     }
     void showTurnOnLoacationDialog() {
         Toast.makeText(MainActivity.this, "Turn on Location",
@@ -106,6 +123,7 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     protected void onResume() {
         super.onResume();
+
         if (!isLocationEnabled()) {
             if(!isLocOn) {
                 isLocOn = true;
@@ -114,6 +132,7 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
         } else {
             if(!isLocOn) {
                 isLocOn = true;
+                populateList(myRealm);
                 locationIsOn();
             }
         }
@@ -124,10 +143,13 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
 
         if (realmResults.size() != 0) {
             Log.e("MAIN","deleting");
+            if(realmResults.size()>220) {
+                realmResults.subList(0, (realmResults.size() - 101));
 
-            myRealm.beginTransaction();
-            realmResults.deleteAllFromRealm();
-            myRealm.commitTransaction();
+                myRealm.beginTransaction();
+                realmResults.deleteAllFromRealm();
+                myRealm.commitTransaction();
+            }
         }
     }
 
@@ -137,7 +159,8 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
     }
     boolean isFirst = true;
     void populateListView(Realm realm){
-        RealmResults<LocationObject> list = realm.where(LocationObject.class).findAll();
+
+        list = realm.where(LocationObject.class).findAll();
         if(list.size()>0) {
             LocationObject lastLoc = list.last();
             if (isFirst) {
@@ -146,14 +169,8 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
             } else updateMarker(lastLoc.getLat(), lastLoc.getLng());
         }
         Log.e("MAIN","org size"+list.size());
-        //list = list.sort("time", Sort.DESCENDING);
-        if (list.size()>100) {
-            Log.e("MAIN","sixe grate than 100");
-            list.subList(list.size()-100, list.size());
-        }
-        Log.e("MAIN","after sort"+list.size());
-        listAdapter = new LocationListAdapter(MainActivity.this,list);
-        listView.setAdapter(listAdapter);
+        populateList(realm);
+
     }
     boolean isMapReady = false;
     @Override
@@ -247,5 +264,28 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
         }else{
             return false;
         }
+    }
+    public static void setListViewHeightBasedOnChildren(ListView listView) {
+        ListAdapter listAdapter = listView.getAdapter();
+        if (listAdapter == null) {
+
+            return;
+        }
+
+        int totalHeight = 0;
+        for (int i = 0; i < listAdapter.getCount(); i++) {
+            View listItem = listAdapter.getView(i, null, listView);
+            listItem.measure(0, 0);
+            totalHeight += listItem.getMeasuredHeight();
+        }
+
+        ViewGroup.LayoutParams params = listView.getLayoutParams();
+        params.height = totalHeight
+                + (listView.getDividerHeight() * (listAdapter.getCount() - 1));
+
+        params.height += listView.getDividerHeight() * listAdapter.getCount();
+
+        listView.setLayoutParams(params);
+        listView.requestLayout();
     }
 }
